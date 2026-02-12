@@ -96,6 +96,14 @@ CLEANUP_STATS_SPACE_FREED_MB=0
 # HELPER FUNCTIONS
 # ============================================================================
 
+# Trim leading and trailing whitespace (for service names and filter matching)
+trim_whitespace() {
+  local var="$1"
+  var="${var#"${var%%[![:space:]]*}"}"
+  var="${var%"${var##*[![:space:]]}"}"
+  printf '%s' "$var"
+}
+
 # Function to escape JSON strings
 escape_json() {
   echo "$1" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g'
@@ -407,7 +415,8 @@ backup_docker_service() {
 
 # Function to check if service should be backed up
 should_backup_service() {
-  local service_name="$1"
+  local service_name
+  service_name=$(trim_whitespace "$1")
   
   # If no filter specified, backup all services
   if [[ -z "$SERVICE_FILTER" ]]; then
@@ -417,7 +426,8 @@ should_backup_service() {
   # Check if service name matches any in the filter (comma-separated)
   IFS=',' read -ra FILTER_ARRAY <<< "$SERVICE_FILTER"
   for filter_item in "${FILTER_ARRAY[@]}"; do
-    if [[ "$service_name" == "$filter_item" ]]; then
+    filter_item=$(trim_whitespace "$filter_item")
+    if [[ -n "$filter_item" ]] && [[ "$service_name" == "$filter_item" ]]; then
       return 0
     fi
   done
@@ -449,9 +459,11 @@ run_backups() {
   BACKUP_STATS_SERVICES_LIST=()
   
   for SERVICE_ENTRY in "${DOCKER_SERVICES[@]}"; do
-    # Extract service name to check filter
+    # Extract service name to check filter (trim whitespace from config)
     IFS=':' read -r SERVICE_NAME <<< "${SERVICE_ENTRY%%|*}"
-    
+    SERVICE_NAME=$(trim_whitespace "$SERVICE_NAME")
+    [[ -z "$SERVICE_NAME" ]] && continue
+
     # Check if this service should be backed up
     if ! should_backup_service "$SERVICE_NAME"; then
       echo "Skipping $SERVICE_NAME (not in filter)"
@@ -491,7 +503,9 @@ run_backups() {
   SYSTEM_BACKED_UP=0
   for SYSTEM_ENTRY in "${SYSTEM_DIRECTORIES[@]}"; do
     IFS=':' read -r BACKUP_NAME DIR_PATH <<< "$SYSTEM_ENTRY"
-    
+    BACKUP_NAME=$(trim_whitespace "$BACKUP_NAME")
+    [[ -z "$BACKUP_NAME" ]] && continue
+
     # Check if this system directory should be backed up
     if [[ -n "$SERVICE_FILTER" ]] && ! should_backup_service "$BACKUP_NAME"; then
       echo "Skipping $BACKUP_NAME (not in filter)"
@@ -862,7 +876,7 @@ while [[ $# -gt 0 ]]; do
         show_usage
         exit 1
       fi
-      SERVICE_FILTER="$2"
+      SERVICE_FILTER=$(trim_whitespace "$2")
       shift 2
       ;;
     --help|-h)
