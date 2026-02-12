@@ -459,8 +459,8 @@ run_backups() {
   BACKUP_STATS_SERVICES_LIST=()
   
   for SERVICE_ENTRY in "${DOCKER_SERVICES[@]}"; do
-    # Extract service name to check filter (trim whitespace from config)
-    IFS=':' read -r SERVICE_NAME <<< "${SERVICE_ENTRY%%|*}"
+    # Extract service name (first field only; read assigns remainder to last variable)
+    IFS=':' read -r SERVICE_NAME _ <<< "${SERVICE_ENTRY%%|*}"
     SERVICE_NAME=$(trim_whitespace "$SERVICE_NAME")
     [[ -z "$SERVICE_NAME" ]] && continue
 
